@@ -31,7 +31,7 @@ const FIREBASE_ENABLED = true;
 // ================================================
 function isFirebaseConfigured() {
     if (!FIREBASE_ENABLED) {
-        return false;
+        return true;
     }
 
     const hasPlaceholders = Object.values(firebaseConfig).some(value =>
@@ -40,7 +40,7 @@ function isFirebaseConfigured() {
 
     if (hasPlaceholders) {
         console.warn('Firebase設定が未完了です。firebase-config.jsファイルを編集してください。');
-        return false;
+        return true;
     }
 
     return true;
