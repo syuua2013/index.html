@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="音大生のためのレッスン記録管理システム">
+    <title>レッスン記録管理システム</title>
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+    <!-- ログインモーダル -->
+    <div id="authModal" class="modal">
+        <div class="modal-content small">
+            <div class="modal-header">
+                <h3 id="authModalTitle">ログイン</h3>
+                <button class="modal-close" onclick="closeAuthModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="authStatus" class="auth-status"></div>
+
+                <form id="authForm" class="auth-form">
+                    <div class="form-group">
+                        <label for="authEmail">メールアドレス</label>
+                        <input type="email" id="authEmail" required placeholder="example@example.com">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="authPassword">パスワード</label>
+                        <input type="password" id="authPassword" required placeholder="8文字以上" minlength="8">
+                    </div>
+
+                    <div class="auth-actions">
+                        <button type="submit" id="authSubmitBtn" class="btn btn-primary">ログイン</button>
+                        <button type="button" id="authToggleBtn" class="btn btn-secondary">アカウントを作成</button>
+                    </div>
+                </form>
+
+                <div class="auth-info">
+                    <p><strong>マルチデバイス同期について:</strong></p>
+                    <p>アカウントを作成してログインすると、iPhone、iPad、PCなど複数のデバイス間でレッスンデータが自動的に同期されます。</p>
+                    <p><small>※ Firebase設定が必要です。詳しくはREADMEをご覧ください。</small></p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="container">
+        <!-- ヘッダー -->
+        <header class="header">
+            <div class="header-content">
+                <div class="header-title">
+                    <h1>🎵 レッスン記録管理システム</h1>
+                    <p class="subtitle">音大生のための学習記録</p>
+                </div>
+                <div class="header-user">
+                    <div id="userInfo" class="user-info" style="display: none;">
+                        <span id="userEmail" class="user-email"></span>
+                        <button id="logoutBtn" class="btn-user">ログアウト</button>
+                    </div>
+                    <button id="loginBtn" class="btn-user btn-login">ログイン</button>
+                    <div id="syncStatus" class="sync-status">
+                        <span class="sync-indicator offline" title="オフラインモード">●</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- メインナビゲーション -->
+        <nav class="main-nav">
+            <button id="showAllBtn" class="nav-btn active">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                </svg>
+                すべて
+            </button>
+            <button id="addNewBtn" class="nav-btn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="16"></line>
+                    <line x1="8" y1="12" x2="16" y2="12"></line>
+                </svg>
+                新規追加
+            </button>
+            <button id="exportBtn" class="nav-btn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                エクスポート
+            </button>
+            <button id="importBtn" class="nav-btn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                インポート
+            </button>
+        </nav>
+
+        <!-- 検索・フィルター -->
+        <section class="search-section">
+            <div class="search-box">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                </svg>
+                <input type="text" id="searchInput" placeholder="先生の名前や要約テキストを検索...">
+            </div>
+            <div class="filter-box">
+                <label for="filterTeacher">先生でフィルター:</label>
+                <select id="filterTeacher">
+                    <option value="">すべて</option>
+                </select>
+            </div>
+        </section>
+
+        <!-- メインコンテンツエリア -->
+        <main id="mainContent">
+            <!-- 一覧ビュー -->
+            <section id="listView" class="view active">
+                <div class="list-header">
+                    <h2>レッスン記録一覧</h2>
+                    <div class="sort-controls">
+                        <label for="sortBy">並び順:</label>
+                        <select id="sortBy">
+                            <option value="date-desc">日付（新しい順）</option>
+                            <option value="date-asc">日付（古い順）</option>
+                            <option value="teacher-asc">先生名（昇順）</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="lessonList" class="lesson-grid">
+                    <!-- レッスンカードがここに表示される -->
+                </div>
+                <div id="emptyState" class="empty-state" style="display: none;">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                        <path d="M9 11H3v2h6m-6 9h18a2 2 0 002-2V4a2 2 0 00-2-2H6a2 2 0 00-2 2v16a2 2 0 002 2M9 7H3v2h6m3 4h6v-2h-6m6 4h-6v2h6z"></path>
+                    </svg>
+                    <h3>レッスン記録がありません</h3>
+                    <p>「新規追加」ボタンから最初のレッスン記録を作成しましょう</p>
+                </div>
+            </section>
+
+            <!-- 詳細ビュー -->
+            <section id="detailView" class="view">
+                <div class="detail-header">
+                    <button id="backToListBtn" class="back-btn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M19 12H5M12 19l-7-7 7-7"/>
+                        </svg>
+                        一覧に戻る
+                    </button>
+                    <div class="detail-actions">
+                        <button id="editLessonBtn" class="action-btn">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                            編集
+                        </button>
+                        <button id="deleteLessonBtn" class="action-btn delete-btn">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                            削除
+                        </button>
+                    </div>
+                </div>
+                <div id="lessonDetail" class="lesson-detail">
+                    <!-- 詳細情報がここに表示される -->
+                </div>
+            </section>
+
+            <!-- フォームビュー（新規追加・編集） -->
+            <section id="formView" class="view">
+                <div class="form-header">
+                    <button id="cancelFormBtn" class="back-btn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M19 12H5M12 19l-7-7 7-7"/>
+                        </svg>
+                        キャンセル
+                    </button>
+                    <h2 id="formTitle">新規レッスン記録</h2>
+                </div>
+                <form id="lessonForm" class="lesson-form">
+                    <input type="hidden" id="lessonId" name="id">
+
+                    <div class="form-group">
+                        <label for="lessonDate" class="required">レッスン日</label>
+                        <input type="date" id="lessonDate" name="date" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="teacherName" class="required">先生の名前</label>
+                        <input type="text" id="teacherName" name="teacher" placeholder="例: 山田 太郎" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="summaryText" class="required">要約テキスト</label>
+                        <textarea id="summaryText" name="summary" rows="4" placeholder="レッスンの要約を入力してください..." required></textarea>
+                        <small class="form-hint">今日のレッスンの主なポイントや学んだことを記録しましょう</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="rating" class="required">評価</label>
+                        <div class="rating-input">
+                            <div class="star-rating" id="starRating">
+                                <span class="star" data-value="1">★</span>
+                                <span class="star" data-value="2">★</span>
+                                <span class="star" data-value="3">★</span>
+                                <span class="star" data-value="4">★</span>
+                                <span class="star" data-value="5">★</span>
+                            </div>
+                            <input type="hidden" id="rating" name="rating" value="0" required>
+                            <div class="rating-label">
+                                <span id="ratingLabel">評価を選択してください</span>
+                            </div>
+                        </div>
+                        <small class="form-hint">今日のレッスンの満足度を星で評価してください</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="reflection">感想・振り返り</label>
+                        <textarea id="reflection" name="reflection" rows="4" placeholder="レッスンの感想や気づいたことを記録してください..."></textarea>
+                        <small class="form-hint">レッスンを受けての感想や今後への意気込みなどを自由に記録しましょう</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="practiceNotes">練習課題メモ</label>
+                        <textarea id="practiceNotes" name="practiceNotes" rows="3" placeholder="次回までの練習課題を入力してください..."></textarea>
+                        <small class="form-hint">先生から指示された練習課題やポイントを記録しましょう</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="audioFile">音声ファイル</label>
+                        <div class="file-upload-area">
+                            <input type="file" id="audioFile" name="audio" accept="audio/*" class="file-input">
+                            <div class="file-upload-label">
+                                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M9 18V5l12-2v13"></path>
+                                    <circle cx="6" cy="18" r="3"></circle>
+                                    <circle cx="18" cy="16" r="3"></circle>
+                                </svg>
+                                <p>クリックまたはドラッグ＆ドロップで音声ファイルを追加</p>
+                                <small>対応形式: MP3, WAV, M4A, OGG</small>
+                            </div>
+                            <div id="audioPreview" class="file-preview" style="display: none;"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="notesImage">レッスンノート画像</label>
+                        <div class="file-upload-area">
+                            <input type="file" id="notesImage" name="notesImage" accept="image/*" class="file-input" multiple>
+                            <div class="file-upload-label">
+                                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                    <polyline points="21 15 16 10 5 21"></polyline>
+                                </svg>
+                                <p>クリックまたはドラッグ＆ドロップでレッスンノート画像を追加</p>
+                                <small>対応形式: JPG, PNG, GIF, WEBP（複数選択可）</small>
+                            </div>
+                            <div id="notesPreview" class="file-preview-grid" style="display: none;"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="notesPdf">レッスンノートPDF</label>
+                        <div class="file-upload-area">
+                            <input type="file" id="notesPdf" name="notesPdf" accept=".pdf,application/pdf" class="file-input" multiple>
+                            <div class="file-upload-label">
+                                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                                    <polyline points="10 9 9 9 8 9"></polyline>
+                                </svg>
+                                <p>クリックまたはドラッグ＆ドロップでPDFファイルを追加</p>
+                                <small>対応形式: PDF（複数選択可）</small>
+                            </div>
+                            <div id="pdfPreview" class="file-preview-grid" style="display: none;"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="diagramImage">図解画像</label>
+                        <div class="file-upload-area">
+                            <input type="file" id="diagramImage" name="diagramImage" accept="image/*" class="file-input" multiple>
+                            <div class="file-upload-label">
+                                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="18" y1="20" x2="18" y2="10"></line>
+                                    <line x1="12" y1="20" x2="12" y2="4"></line>
+                                    <line x1="6" y1="20" x2="6" y2="14"></line>
+                                </svg>
+                                <p>クリックまたはドラッグ＆ドロップで図解画像を追加</p>
+                                <small>対応形式: JPG, PNG, GIF, WEBP（複数選択可）</small>
+                            </div>
+                            <div id="diagramPreview" class="file-preview-grid" style="display: none;"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" id="cancelFormBtn2" class="btn btn-secondary">キャンセル</button>
+                        <button type="submit" class="btn btn-primary">保存</button>
+                    </div>
+                </form>
+            </section>
+        </main>
+    </div>
+
+    <!-- 画像モーダル -->
+    <div id="imageModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close">&times;</button>
+            <div class="modal-body">
+                <button class="modal-nav modal-prev">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 18 9 12 15 6"></polyline>
+                    </svg>
+                </button>
+                <img id="modalImage" src="" alt="プレビュー">
+                <button class="modal-nav modal-next">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-footer">
+                <span id="modalImageInfo"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 削除確認モーダル -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content small">
+            <div class="modal-header">
+                <h3>削除の確認</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>このレッスン記録を削除してもよろしいですか？</p>
+                <p class="warning-text">この操作は取り消せません。</p>
+            </div>
+            <div class="modal-footer">
+                <button id="cancelDeleteBtn" class="btn btn-secondary">キャンセル</button>
+                <button id="confirmDeleteBtn" class="btn btn-danger">削除する</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- インポート用の非表示input -->
+    <input type="file" id="importFileInput" accept=".json" style="display: none;">
+
+    <!-- トースト通知 -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- JavaScriptファイル -->
+    <script src="firebase-config.js"></script>
+    <script src="sync.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
