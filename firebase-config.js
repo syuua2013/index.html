@@ -11,16 +11,27 @@
 //
 // ================================================
 
-// Firebase設定オブジェクト
-// ⚠️ 重要: 以下の値を自分のFirebaseプロジェクトの値に置き換えてください
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-    apiKey: "AIzaSyDxxx...",
-    authDomain: "lesson-records-app.firebaseapp.com",
-    projectId: "lesson-records-app",
-    storageBucket: "lesson-records-app.appspot.com",
-    messagingSenderId: "123456789",
-    appId: "1:123456789:web:abc123"
+  apiKey: "AIzaSyByUrjES-dfpgBoeiFsX5VdWpqo65Sq_ow",
+  authDomain: "lesson-records-app-26a00.firebaseapp.com",
+  projectId: "lesson-records-app-26a00",
+  storageBucket: "lesson-records-app-26a00.firebasestorage.app",
+  messagingSenderId: "976747887082",
+  appId: "1:976747887082:web:1fe812c9c07709bb745a93",
+  measurementId: "G-C8YDKWWVHT"
 };
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
 
 // Firebase機能を有効にするかどうか
 // Firebase設定が完了したら、この値をtrueに変更してください
