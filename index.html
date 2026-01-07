@@ -6,13 +6,67 @@
     <meta name="description" content="音大生のためのレッスン記録管理システム">
     <title>レッスン記録管理システム</title>
     <link rel="stylesheet" href="styles.css">
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
+    <!-- ログインモーダル -->
+    <div id="authModal" class="modal">
+        <div class="modal-content small">
+            <div class="modal-header">
+                <h3 id="authModalTitle">ログイン</h3>
+                <button class="modal-close" onclick="closeAuthModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="authStatus" class="auth-status"></div>
+
+                <form id="authForm" class="auth-form">
+                    <div class="form-group">
+                        <label for="authEmail">メールアドレス</label>
+                        <input type="email" id="authEmail" required placeholder="example@example.com">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="authPassword">パスワード</label>
+                        <input type="password" id="authPassword" required placeholder="8文字以上" minlength="8">
+                    </div>
+
+                    <div class="auth-actions">
+                        <button type="submit" id="authSubmitBtn" class="btn btn-primary">ログイン</button>
+                        <button type="button" id="authToggleBtn" class="btn btn-secondary">アカウントを作成</button>
+                    </div>
+                </form>
+
+                <div class="auth-info">
+                    <p><strong>マルチデバイス同期について:</strong></p>
+                    <p>アカウントを作成してログインすると、iPhone、iPad、PCなど複数のデバイス間でレッスンデータが自動的に同期されます。</p>
+                    <p><small>※ Firebase設定が必要です。詳しくはREADMEをご覧ください。</small></p>
+                </div>
+            </div>
+        </div>
+    </div>
     <div class="container">
         <!-- ヘッダー -->
         <header class="header">
-            <h1>🎵 レッスン記録管理システム</h1>
-            <p class="subtitle">音大生のための学習記録</p>
+            <div class="header-content">
+                <div class="header-title">
+                    <h1>🎵 レッスン記録管理システム</h1>
+                    <p class="subtitle">音大生のための学習記録</p>
+                </div>
+                <div class="header-user">
+                    <div id="userInfo" class="user-info" style="display: none;">
+                        <span id="userEmail" class="user-email"></span>
+                        <button id="logoutBtn" class="btn-user">ログアウト</button>
+                    </div>
+                    <button id="loginBtn" class="btn-user btn-login">ログイン</button>
+                    <div id="syncStatus" class="sync-status">
+                        <span class="sync-indicator offline" title="オフラインモード">●</span>
+                    </div>
+                </div>
+            </div>
         </header>
 
         <!-- メインナビゲーション -->
@@ -155,6 +209,36 @@
                     </div>
 
                     <div class="form-group">
+                        <label for="rating" class="required">評価</label>
+                        <div class="rating-input">
+                            <div class="star-rating" id="starRating">
+                                <span class="star" data-value="1">★</span>
+                                <span class="star" data-value="2">★</span>
+                                <span class="star" data-value="3">★</span>
+                                <span class="star" data-value="4">★</span>
+                                <span class="star" data-value="5">★</span>
+                            </div>
+                            <input type="hidden" id="rating" name="rating" value="0" required>
+                            <div class="rating-label">
+                                <span id="ratingLabel">評価を選択してください</span>
+                            </div>
+                        </div>
+                        <small class="form-hint">今日のレッスンの満足度を星で評価してください</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="reflection">感想・振り返り</label>
+                        <textarea id="reflection" name="reflection" rows="4" placeholder="レッスンの感想や気づいたことを記録してください..."></textarea>
+                        <small class="form-hint">レッスンを受けての感想や今後への意気込みなどを自由に記録しましょう</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="practiceNotes">練習課題メモ</label>
+                        <textarea id="practiceNotes" name="practiceNotes" rows="3" placeholder="次回までの練習課題を入力してください..."></textarea>
+                        <small class="form-hint">先生から指示された練習課題やポイントを記録しましょう</small>
+                    </div>
+
+                    <div class="form-group">
                         <label for="audioFile">音声ファイル</label>
                         <div class="file-upload-area">
                             <input type="file" id="audioFile" name="audio" accept="audio/*" class="file-input">
@@ -185,6 +269,25 @@
                                 <small>対応形式: JPG, PNG, GIF, WEBP（複数選択可）</small>
                             </div>
                             <div id="notesPreview" class="file-preview-grid" style="display: none;"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="notesPdf">レッスンノートPDF</label>
+                        <div class="file-upload-area">
+                            <input type="file" id="notesPdf" name="notesPdf" accept=".pdf,application/pdf" class="file-input" multiple>
+                            <div class="file-upload-label">
+                                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                                    <polyline points="10 9 9 9 8 9"></polyline>
+                                </svg>
+                                <p>クリックまたはドラッグ＆ドロップでPDFファイルを追加</p>
+                                <small>対応形式: PDF（複数選択可）</small>
+                            </div>
+                            <div id="pdfPreview" class="file-preview-grid" style="display: none;"></div>
                         </div>
                     </div>
 
@@ -261,6 +364,9 @@
     <!-- トースト通知 -->
     <div id="toastContainer" class="toast-container"></div>
 
+    <!-- JavaScriptファイル -->
+    <script src="firebase-config.js"></script>
+    <script src="sync.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

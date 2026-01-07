@@ -4,7 +4,7 @@
 class LessonDB {
     constructor() {
         this.dbName = 'LessonRecordsDB';
-        this.version = 1;
+        this.version = 2; // バージョンアップ: 評価・感想フィールド追加
         this.db = null;
     }
 
@@ -20,6 +20,7 @@ class LessonDB {
 
             request.onupgradeneeded = (event) => {
                 const db = event.target.result;
+                const oldVersion = event.oldVersion;
 
                 if (!db.objectStoreNames.contains('lessons')) {
                     const objectStore = db.createObjectStore('lessons', {
@@ -30,6 +31,7 @@ class LessonDB {
                     objectStore.createIndex('date', 'date', { unique: false });
                     objectStore.createIndex('teacher', 'teacher', { unique: false });
                     objectStore.createIndex('summary', 'summary', { unique: false });
+                    objectStore.createIndex('rating', 'rating', { unique: false });
                 }
             };
         });
@@ -203,7 +205,15 @@ class UIController {
         this.cancelFormBtn2 = document.getElementById('cancelFormBtn2');
         this.audioFile = document.getElementById('audioFile');
         this.notesImage = document.getElementById('notesImage');
+        this.notesPdf = document.getElementById('notesPdf');
         this.diagramImage = document.getElementById('diagramImage');
+
+        // 評価・感想要素
+        this.starRating = document.getElementById('starRating');
+        this.ratingInput = document.getElementById('rating');
+        this.ratingLabel = document.getElementById('ratingLabel');
+        this.reflectionInput = document.getElementById('reflection');
+        this.practiceNotesInput = document.getElementById('practiceNotes');
 
         // モーダル
         this.imageModal = document.getElementById('imageModal');
@@ -259,7 +269,11 @@ class UIController {
         // ファイルアップロード
         this.setupFileUpload(this.audioFile, 'audioPreview', 'audio');
         this.setupFileUpload(this.notesImage, 'notesPreview', 'images');
+        this.setupFileUpload(this.notesPdf, 'pdfPreview', 'pdf');
         this.setupFileUpload(this.diagramImage, 'diagramPreview', 'images');
+
+        // 星評価
+        this.setupStarRating();
 
         // モーダル
         this.imageModal.querySelectorAll('.modal-close').forEach(btn => {
@@ -303,6 +317,51 @@ class UIController {
                     modal.classList.remove('active');
                 }
             });
+        });
+    }
+
+    setupStarRating() {
+        const stars = this.starRating.querySelectorAll('.star');
+        const labels = ['評価なし', '不満', '普通', '良い', 'とても良い', '最高！'];
+
+        stars.forEach((star, index) => {
+            // クリック時
+            star.addEventListener('click', () => {
+                const value = star.getAttribute('data-value');
+                this.ratingInput.value = value;
+                this.updateStarDisplay(parseInt(value));
+                this.ratingLabel.textContent = labels[parseInt(value)];
+                this.ratingLabel.classList.add('selected');
+            });
+
+            // ホバー時
+            star.addEventListener('mouseenter', () => {
+                const value = parseInt(star.getAttribute('data-value'));
+                stars.forEach((s, i) => {
+                    if (i < value) {
+                        s.classList.add('active');
+                    } else {
+                        s.classList.remove('active');
+                    }
+                });
+            });
+        });
+
+        // マウスアウト時に元の評価に戻す
+        this.starRating.addEventListener('mouseleave', () => {
+            const currentRating = parseInt(this.ratingInput.value);
+            this.updateStarDisplay(currentRating);
+        });
+    }
+
+    updateStarDisplay(rating) {
+        const stars = this.starRating.querySelectorAll('.star');
+        stars.forEach((star, index) => {
+            if (index < rating) {
+                star.classList.add('active');
+            } else {
+                star.classList.remove('active');
+            }
         });
     }
 
@@ -373,6 +432,26 @@ class UIController {
                     <button type="button" class="preview-remove" onclick="uiController.removeFile('${input.id}', '${preview.id}', 'audio')">&times;</button>
                 </div>
             `;
+        } else if (type === 'pdf') {
+            for (const file of files) {
+                const fileData = await this.fileToBase64(file);
+                const item = document.createElement('div');
+                item.className = 'pdf-preview-item';
+                item.innerHTML = `
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                    </svg>
+                    <div class="pdf-preview-info">
+                        <div class="pdf-preview-name">${file.name}</div>
+                        <div class="pdf-preview-size">${this.formatFileSize(file.size)}</div>
+                    </div>
+                    <button type="button" class="preview-remove" onclick="uiController.removeFileFromList('${input.id}', '${preview.id}', '${file.name}')">&times;</button>
+                `;
+                preview.appendChild(item);
+            }
         } else {
             for (const file of files) {
                 const fileData = await this.fileToBase64(file);
@@ -523,6 +602,17 @@ class UIController {
         card.onclick = () => this.showDetailView(lesson.id);
 
         const badges = [];
+
+        // 評価バッジ
+        if (lesson.rating && lesson.rating > 0) {
+            const stars = '★'.repeat(lesson.rating);
+            badges.push(`
+                <div class="lesson-card-badge" style="color: #fbbf24; font-weight: 600;">
+                    ${stars}
+                </div>
+            `);
+        }
+
         if (lesson.audioData) {
             badges.push(`
                 <div class="lesson-card-badge">
@@ -544,6 +634,17 @@ class UIController {
                         <polyline points="21 15 16 10 5 21"></polyline>
                     </svg>
                     ノート ${lesson.notesImages.length}
+                </div>
+            `);
+        }
+        if (lesson.notesPdfs && lesson.notesPdfs.length > 0) {
+            badges.push(`
+                <div class="lesson-card-badge">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                    </svg>
+                    PDF ${lesson.notesPdfs.length}
                 </div>
             `);
         }
@@ -594,7 +695,32 @@ class UIController {
                         <div class="detail-info-value">${this.escapeHtml(lesson.teacher)}</div>
                     </div>
                 </div>
+            `;
 
+            // 評価表示
+            if (lesson.rating && lesson.rating > 0) {
+                const ratingLabels = ['', '不満', '普通', '良い', 'とても良い', '最高！'];
+                const stars = Array.from({length: 5}, (_, i) => {
+                    return `<span class="star ${i < lesson.rating ? 'filled' : ''}">★</span>`;
+                }).join('');
+
+                html += `
+                    <div class="detail-section">
+                        <h3>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                            </svg>
+                            評価
+                        </h3>
+                        <div class="detail-rating">
+                            <div class="detail-rating-stars">${stars}</div>
+                            <div class="detail-rating-text">${ratingLabels[lesson.rating]}</div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += `
                 <div class="detail-section">
                     <h3>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -609,6 +735,37 @@ class UIController {
                     <div class="detail-summary">${this.escapeHtml(lesson.summary)}</div>
                 </div>
             `;
+
+            // 感想・振り返り
+            if (lesson.reflection) {
+                html += `
+                    <div class="detail-section">
+                        <h3>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                            </svg>
+                            感想・振り返り
+                        </h3>
+                        <div class="detail-reflection">${this.escapeHtml(lesson.reflection)}</div>
+                    </div>
+                `;
+            }
+
+            // 練習課題
+            if (lesson.practiceNotes) {
+                html += `
+                    <div class="detail-section">
+                        <h3>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 11l3 3L22 4"></path>
+                                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                            </svg>
+                            練習課題メモ
+                        </h3>
+                        <div class="detail-practice-notes">${this.escapeHtml(lesson.practiceNotes)}</div>
+                    </div>
+                `;
+            }
 
             if (lesson.audioData) {
                 html += `
@@ -640,12 +797,51 @@ class UIController {
                                 <circle cx="8.5" cy="8.5" r="1.5"></circle>
                                 <polyline points="21 15 16 10 5 21"></polyline>
                             </svg>
-                            レッスンノート
+                            レッスンノート画像
                         </h3>
                         <div class="image-gallery">
                             ${lesson.notesImages.map((img, index) => `
                                 <div class="gallery-item" onclick="uiController.openImageModal(${this.state.currentLessonId}, 'notes', ${index})">
                                     <img src="${img.data}" alt="レッスンノート ${index + 1}">
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (lesson.notesPdfs && lesson.notesPdfs.length > 0) {
+                html += `
+                    <div class="detail-section">
+                        <h3>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                            </svg>
+                            レッスンノートPDF
+                        </h3>
+                        <div class="file-preview-grid">
+                            ${lesson.notesPdfs.map((pdf, index) => `
+                                <div class="pdf-preview-item">
+                                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                        <polyline points="14 2 14 8 20 8"></polyline>
+                                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                                    </svg>
+                                    <div class="pdf-preview-info">
+                                        <div class="pdf-preview-name">${pdf.name}</div>
+                                    </div>
+                                    <button type="button" class="pdf-download-btn" onclick="uiController.downloadPdf('${pdf.data}', '${pdf.name}')">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                            <polyline points="7 10 12 15 17 10"></polyline>
+                                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                                        </svg>
+                                        開く
+                                    </button>
                                 </div>
                             `).join('')}
                         </div>
@@ -718,6 +914,13 @@ class UIController {
         this.imageModal.classList.remove('active');
     }
 
+    downloadPdf(pdfData, fileName) {
+        const link = document.createElement('a');
+        link.href = pdfData;
+        link.download = fileName;
+        link.click();
+    }
+
     async loadLessonToForm(lessonId) {
         try {
             const lesson = await this.db.getLesson(lessonId);
@@ -727,6 +930,23 @@ class UIController {
             document.getElementById('lessonDate').value = lesson.date;
             document.getElementById('teacherName').value = lesson.teacher;
             document.getElementById('summaryText').value = lesson.summary;
+
+            // 評価・感想・練習課題
+            if (lesson.rating) {
+                this.ratingInput.value = lesson.rating;
+                this.updateStarDisplay(lesson.rating);
+                const labels = ['評価なし', '不満', '普通', '良い', 'とても良い', '最高！'];
+                this.ratingLabel.textContent = labels[lesson.rating];
+                this.ratingLabel.classList.add('selected');
+            } else {
+                this.ratingInput.value = 0;
+                this.updateStarDisplay(0);
+                this.ratingLabel.textContent = '評価を選択してください';
+                this.ratingLabel.classList.remove('selected');
+            }
+
+            this.reflectionInput.value = lesson.reflection || '';
+            this.practiceNotesInput.value = lesson.practiceNotes || '';
 
             this.clearFilePreviews();
 
@@ -760,6 +980,25 @@ class UIController {
                 `).join('');
             }
 
+            // PDFプレビュー
+            if (lesson.notesPdfs && lesson.notesPdfs.length > 0) {
+                const pdfPreview = document.getElementById('pdfPreview');
+                pdfPreview.style.display = 'grid';
+                pdfPreview.innerHTML = lesson.notesPdfs.map(pdf => `
+                    <div class="pdf-preview-item">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                        </svg>
+                        <div class="pdf-preview-info">
+                            <div class="pdf-preview-name">${pdf.name}</div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
             // 図解画像プレビュー
             if (lesson.diagramImages && lesson.diagramImages.length > 0) {
                 const diagramPreview = document.getElementById('diagramPreview');
@@ -778,7 +1017,7 @@ class UIController {
     }
 
     clearFilePreviews() {
-        ['audioPreview', 'notesPreview', 'diagramPreview'].forEach(id => {
+        ['audioPreview', 'notesPreview', 'pdfPreview', 'diagramPreview'].forEach(id => {
             const preview = document.getElementById(id);
             preview.innerHTML = '';
             preview.style.display = 'none';
@@ -796,6 +1035,9 @@ class UIController {
                 date: formData.get('date'),
                 teacher: formData.get('teacher'),
                 summary: formData.get('summary'),
+                rating: parseInt(this.ratingInput.value) || 0,
+                reflection: this.reflectionInput.value || '',
+                practiceNotes: this.practiceNotesInput.value || '',
             };
 
             // 音声ファイル処理
@@ -827,6 +1069,23 @@ class UIController {
                 const existingLesson = await this.db.getLesson(parseInt(lessonId));
                 if (existingLesson) {
                     lesson.notesImages = existingLesson.notesImages || [];
+                }
+            }
+
+            // PDFファイル処理
+            const pdfFiles = Array.from(this.notesPdf.files);
+            if (pdfFiles.length > 0) {
+                lesson.notesPdfs = await Promise.all(
+                    pdfFiles.map(async file => ({
+                        data: await this.fileToBase64(file),
+                        name: file.name,
+                        type: file.type
+                    }))
+                );
+            } else if (lessonId) {
+                const existingLesson = await this.db.getLesson(parseInt(lessonId));
+                if (existingLesson) {
+                    lesson.notesPdfs = existingLesson.notesPdfs || [];
                 }
             }
 
@@ -986,9 +1245,162 @@ class UIController {
 }
 
 // ================================================
+// 認証UI管理
+// ================================================
+class AuthUI {
+    constructor(syncManager, uiController) {
+        this.syncManager = syncManager;
+        this.uiController = uiController;
+        this.authModal = document.getElementById('authModal');
+        this.authForm = document.getElementById('authForm');
+        this.authEmail = document.getElementById('authEmail');
+        this.authPassword = document.getElementById('authPassword');
+        this.authStatus = document.getElementById('authStatus');
+        this.authSubmitBtn = document.getElementById('authSubmitBtn');
+        this.authToggleBtn = document.getElementById('authToggleBtn');
+        this.authModalTitle = document.getElementById('authModalTitle');
+        this.loginBtn = document.getElementById('loginBtn');
+        this.logoutBtn = document.getElementById('logoutBtn');
+        this.userInfo = document.getElementById('userInfo');
+        this.userEmail = document.getElementById('userEmail');
+        this.syncStatus = document.getElementById('syncStatus');
+        this.isSignUpMode = false;
+
+        this.attachEventListeners();
+    }
+
+    attachEventListeners() {
+        this.authForm.addEventListener('submit', (e) => this.handleAuthSubmit(e));
+        this.authToggleBtn.addEventListener('click', () => this.toggleAuthMode());
+        this.loginBtn.addEventListener('click', () => this.showAuthModal());
+        this.logoutBtn.addEventListener('click', () => this.handleLogout());
+
+        // モーダル背景クリックで閉じる
+        this.authModal.addEventListener('click', (e) => {
+            if (e.target === this.authModal) {
+                this.closeAuthModal();
+            }
+        });
+    }
+
+    showAuthModal() {
+        this.authModal.classList.add('active');
+        this.authStatus.className = 'auth-status';
+        this.authStatus.textContent = '';
+    }
+
+    closeAuthModal() {
+        this.authModal.classList.remove('active');
+        this.authForm.reset();
+        this.authStatus.className = 'auth-status';
+        this.authStatus.textContent = '';
+    }
+
+    toggleAuthMode() {
+        this.isSignUpMode = !this.isSignUpMode;
+        if (this.isSignUpMode) {
+            this.authModalTitle.textContent = 'アカウント作成';
+            this.authSubmitBtn.textContent = 'アカウントを作成';
+            this.authToggleBtn.textContent = 'ログインに戻る';
+        } else {
+            this.authModalTitle.textContent = 'ログイン';
+            this.authSubmitBtn.textContent = 'ログイン';
+            this.authToggleBtn.textContent = 'アカウントを作成';
+        }
+        this.authStatus.className = 'auth-status';
+        this.authStatus.textContent = '';
+    }
+
+    async handleAuthSubmit(e) {
+        e.preventDefault();
+
+        const email = this.authEmail.value;
+        const password = this.authPassword.value;
+
+        this.authSubmitBtn.disabled = true;
+        this.authSubmitBtn.textContent = '処理中...';
+
+        let result;
+        if (this.isSignUpMode) {
+            result = await this.syncManager.signUp(email, password);
+        } else {
+            result = await this.syncManager.signIn(email, password);
+        }
+
+        this.authSubmitBtn.disabled = false;
+        this.authSubmitBtn.textContent = this.isSignUpMode ? 'アカウントを作成' : 'ログイン';
+
+        if (result.success) {
+            this.authStatus.className = 'auth-status success';
+            this.authStatus.textContent = this.isSignUpMode ? 'アカウントを作成しました' : 'ログインしました';
+            this.updateUserUI(result.user);
+            setTimeout(() => this.closeAuthModal(), 1500);
+        } else {
+            this.authStatus.className = 'auth-status error';
+            this.authStatus.textContent = this.getErrorMessage(result.error);
+        }
+    }
+
+    async handleLogout() {
+        const result = await this.syncManager.signOut();
+        if (result.success) {
+            this.updateUserUI(null);
+            this.uiController.showToast('ログアウトしました', 'success');
+        }
+    }
+
+    updateUserUI(user) {
+        if (user) {
+            this.loginBtn.style.display = 'none';
+            this.userInfo.style.display = 'flex';
+            this.userEmail.textContent = user.email;
+            this.updateSyncStatus('online');
+        } else {
+            this.loginBtn.style.display = 'block';
+            this.userInfo.style.display = 'none';
+            this.userEmail.textContent = '';
+            this.updateSyncStatus('offline');
+        }
+    }
+
+    updateSyncStatus(status) {
+        const indicator = this.syncStatus.querySelector('.sync-indicator');
+        indicator.className = `sync-indicator ${status}`;
+
+        const titles = {
+            online: 'オンライン - 同期中',
+            offline: 'オフラインモード',
+            syncing: '同期中...'
+        };
+        indicator.title = titles[status] || 'オフラインモード';
+    }
+
+    getErrorMessage(error) {
+        if (error.includes('email-already-in-use')) {
+            return 'このメールアドレスは既に使用されています';
+        } else if (error.includes('weak-password')) {
+            return 'パスワードは8文字以上にしてください';
+        } else if (error.includes('invalid-email')) {
+            return '有効なメールアドレスを入力してください';
+        } else if (error.includes('user-not-found') || error.includes('wrong-password')) {
+            return 'メールアドレスまたはパスワードが正しくありません';
+        } else {
+            return '認証エラーが発生しました: ' + error;
+        }
+    }
+}
+
+// グローバル関数（HTMLから呼び出されるため）
+function closeAuthModal() {
+    if (window.authUI) {
+        window.authUI.closeAuthModal();
+    }
+}
+
+// ================================================
 // アプリケーション初期化
 // ================================================
-let db, state, uiController;
+let db, state, uiController, syncManager, authUI;
 
 async function initApp() {
     try {
@@ -999,6 +1411,25 @@ async function initApp() {
         uiController = new UIController(state, db);
 
         await uiController.showListView();
+
+        // Firebase同期の初期化
+        if (typeof SyncManager !== 'undefined') {
+            syncManager = new SyncManager(db, uiController);
+            const initialized = await syncManager.init();
+
+            if (initialized) {
+                console.log('Firebase同期システムを初期化しました');
+
+                // 認証UIの初期化
+                authUI = new AuthUI(syncManager, uiController);
+                window.authUI = authUI; // グローバルに公開
+
+                // 保留中の変更を読み込み
+                syncManager.loadPendingChanges();
+            } else {
+                console.log('ローカルモードで起動しました');
+            }
+        }
 
         console.log('レッスン記録管理システムを起動しました');
     } catch (error) {
