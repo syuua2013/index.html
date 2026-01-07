@@ -14,12 +14,12 @@
 // Firebase設定オブジェクト
 // ⚠️ 重要: 以下の値を自分のFirebaseプロジェクトの値に置き換えてください
 const firebaseConfig = {
-  apiKey: "AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXX",
-  authDomain: "lesson-records-app.firebaseapp.com",
-  projectId: "lesson-records-app",
-  storageBucket: "lesson-records-app.appspot.com",
-  messagingSenderId: "123456789012",
-  appId: "1:123456789012:web:abcdef1234567890"
+    apiKey: "AIzaSyDxxx...",
+    authDomain: "lesson-records-app.firebaseapp.com",
+    projectId: "lesson-records-app",
+    storageBucket: "lesson-records-app.appspot.com",
+    messagingSenderId: "123456789",
+    appId: "1:123456789:web:abc123"
 };
 
 // Firebase機能を有効にするかどうか
