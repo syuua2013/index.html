@@ -11,14 +11,7 @@
 //
 // ================================================
 
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// Firebase設定オブジェクト
 const firebaseConfig = {
   apiKey: "AIzaSyByUrjES-dfpgBoeiFsX5VdWpqo65Sq_ow",
   authDomain: "lesson-records-app-26a00.firebaseapp.com",
@@ -29,10 +22,6 @@ const firebaseConfig = {
   measurementId: "G-C8YDKWWVHT"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
-
 // Firebase機能を有効にするかどうか
 // Firebase設定が完了したら、この値をtrueに変更してください
 const FIREBASE_ENABLED = true;
@@ -42,7 +31,7 @@ const FIREBASE_ENABLED = true;
 // ================================================
 function isFirebaseConfigured() {
     if (!FIREBASE_ENABLED) {
-        return true;
+        return false;
     }
 
     const hasPlaceholders = Object.values(firebaseConfig).some(value =>
@@ -51,7 +40,7 @@ function isFirebaseConfigured() {
 
     if (hasPlaceholders) {
         console.warn('Firebase設定が未完了です。firebase-config.jsファイルを編集してください。');
-        return true;
+        return false;
     }
 
     return true;
