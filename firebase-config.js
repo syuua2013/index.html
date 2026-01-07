@@ -14,17 +14,17 @@
 // Firebase設定オブジェクト
 // ⚠️ 重要: 以下の値を自分のFirebaseプロジェクトの値に置き換えてください
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY_HERE",
-    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT_ID.appspot.com",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXX",
+  authDomain: "lesson-records-app.firebaseapp.com",
+  projectId: "lesson-records-app",
+  storageBucket: "lesson-records-app.appspot.com",
+  messagingSenderId: "123456789012",
+  appId: "1:123456789012:web:abcdef1234567890"
 };
 
 // Firebase機能を有効にするかどうか
 // Firebase設定が完了したら、この値をtrueに変更してください
-const FIREBASE_ENABLED = false;
+const FIREBASE_ENABLED = true;
 
 // ================================================
 // 設定の検証
