@@ -9,6 +9,7 @@ class SyncManager {
         this.firebaseApp = null;
         this.firestore = null;
         this.auth = null;
+        this.storage = null;
         this.currentUser = null;
         this.isOnline = navigator.onLine;
         this.syncInProgress = false;
@@ -28,6 +29,7 @@ class SyncManager {
             this.firebaseApp = firebase.initializeApp(firebaseConfig);
             this.firestore = firebase.firestore();
             this.auth = firebase.auth();
+            this.storage = firebase.storage();
 
             // 認証状態の監視
             this.auth.onAuthStateChanged(async (user) => {
@@ -112,6 +114,58 @@ class SyncManager {
     // データ同期機能
     // ================================================
 
+    // Base64データをFirebase Storageにアップロード
+    async uploadFileToStorage(base64Data, fileName, lessonId) {
+        if (!base64Data || !this.storage || !this.currentUser) {
+            return null;
+        }
+
+        try {
+            // Base64をBlobに変換
+            const byteString = atob(base64Data.split(',')[1]);
+            const mimeType = base64Data.split(',')[0].split(':')[1].split(';')[0];
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) {
+                ia[i] = byteString.charCodeAt(i);
+            }
+            const blob = new Blob([ab], { type: mimeType });
+
+            // Storageにアップロード
+            const path = `users/${this.currentUser.uid}/lessons/${lessonId}/${fileName}`;
+            const storageRef = this.storage.ref(path);
+            await storageRef.put(blob);
+
+            // ダウンロードURLを取得
+            const downloadURL = await storageRef.getDownloadURL();
+            return downloadURL;
+        } catch (error) {
+            console.error('ファイルアップロードエラー:', error);
+            return null;
+        }
+    }
+
+    // Firebase StorageからファイルをBase64として取得
+    async downloadFileFromStorage(url) {
+        if (!url) {
+            return null;
+        }
+
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.readAsDataURL(blob);
+            });
+        } catch (error) {
+            console.error('ファイルダウンロードエラー:', error);
+            return null;
+        }
+    }
+
     async syncToCloud() {
         if (!this.currentUser || !this.isOnline) {
             this.queueChange('sync_all');
@@ -126,19 +180,60 @@ class SyncManager {
 
         try {
             const lessons = await this.db.getAllLessons();
-            const batch = this.firestore.batch();
             const userLessonsRef = this.firestore.collection('users').doc(this.currentUser.uid).collection('lessons');
 
             for (const lesson of lessons) {
+                const lessonData = { ...lesson };
+
+                // 大きなファイルをStorageにアップロード
+                if (lesson.audioData) {
+                    const audioURL = await this.uploadFileToStorage(
+                        lesson.audioData,
+                        lesson.audioName || 'audio',
+                        lesson.id
+                    );
+                    if (audioURL) {
+                        lessonData.audioURL = audioURL;
+                        delete lessonData.audioData; // Base64データは削除
+                    }
+                }
+
+                if (lesson.images && lesson.images.length > 0) {
+                    lessonData.imageURLs = [];
+                    for (let i = 0; i < lesson.images.length; i++) {
+                        const imageURL = await this.uploadFileToStorage(
+                            lesson.images[i],
+                            `image_${i}`,
+                            lesson.id
+                        );
+                        if (imageURL) {
+                            lessonData.imageURLs.push(imageURL);
+                        }
+                    }
+                    delete lessonData.images; // Base64データは削除
+                }
+
+                if (lesson.notePdf) {
+                    const pdfURL = await this.uploadFileToStorage(
+                        lesson.notePdf,
+                        lesson.notePdfName || 'notes.pdf',
+                        lesson.id
+                    );
+                    if (pdfURL) {
+                        lessonData.notePdfURL = pdfURL;
+                        delete lessonData.notePdf; // Base64データは削除
+                    }
+                }
+
+                // Firestoreに保存（URLのみ）
                 const docRef = userLessonsRef.doc(lesson.id.toString());
-                batch.set(docRef, {
-                    ...lesson,
+                await docRef.set({
+                    ...lessonData,
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                     deviceId: this.getDeviceId()
                 });
             }
 
-            await batch.commit();
             console.log(`${lessons.length}件のレッスンをクラウドに同期しました`);
         } catch (error) {
             console.error('クラウド同期エラー:', error);
@@ -167,10 +262,35 @@ class SyncManager {
             }
 
             // クラウドのデータとローカルデータをマージ
-            const cloudLessons = snapshot.docs.map(doc => ({
-                ...doc.data(),
-                id: parseInt(doc.id)
-            }));
+            const cloudLessons = [];
+
+            for (const doc of snapshot.docs) {
+                const lessonData = {
+                    ...doc.data(),
+                    id: parseInt(doc.id)
+                };
+
+                // StorageのURLからファイルを復元
+                if (lessonData.audioURL && !lessonData.audioData) {
+                    lessonData.audioData = await this.downloadFileFromStorage(lessonData.audioURL);
+                }
+
+                if (lessonData.imageURLs && lessonData.imageURLs.length > 0 && !lessonData.images) {
+                    lessonData.images = [];
+                    for (const imageURL of lessonData.imageURLs) {
+                        const imageData = await this.downloadFileFromStorage(imageURL);
+                        if (imageData) {
+                            lessonData.images.push(imageData);
+                        }
+                    }
+                }
+
+                if (lessonData.notePdfURL && !lessonData.notePdf) {
+                    lessonData.notePdf = await this.downloadFileFromStorage(lessonData.notePdfURL);
+                }
+
+                cloudLessons.push(lessonData);
+            }
 
             const localLessons = await this.db.getAllLessons();
             const localIds = new Set(localLessons.map(l => l.id));
@@ -250,13 +370,55 @@ class SyncManager {
         }
 
         try {
+            const lessonData = { ...lesson };
+
+            // 大きなファイルをStorageにアップロード
+            if (lesson.audioData) {
+                const audioURL = await this.uploadFileToStorage(
+                    lesson.audioData,
+                    lesson.audioName || 'audio',
+                    lesson.id
+                );
+                if (audioURL) {
+                    lessonData.audioURL = audioURL;
+                    delete lessonData.audioData;
+                }
+            }
+
+            if (lesson.images && lesson.images.length > 0) {
+                lessonData.imageURLs = [];
+                for (let i = 0; i < lesson.images.length; i++) {
+                    const imageURL = await this.uploadFileToStorage(
+                        lesson.images[i],
+                        `image_${i}`,
+                        lesson.id
+                    );
+                    if (imageURL) {
+                        lessonData.imageURLs.push(imageURL);
+                    }
+                }
+                delete lessonData.images;
+            }
+
+            if (lesson.notePdf) {
+                const pdfURL = await this.uploadFileToStorage(
+                    lesson.notePdf,
+                    lesson.notePdfName || 'notes.pdf',
+                    lesson.id
+                );
+                if (pdfURL) {
+                    lessonData.notePdfURL = pdfURL;
+                    delete lessonData.notePdf;
+                }
+            }
+
             const userLessonsRef = this.firestore
                 .collection('users')
                 .doc(this.currentUser.uid)
                 .collection('lessons');
 
             await userLessonsRef.doc(lesson.id.toString()).set({
-                ...lesson,
+                ...lessonData,
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 deviceId: this.getDeviceId()
             });
@@ -273,13 +435,55 @@ class SyncManager {
         }
 
         try {
+            const lessonData = { ...lesson };
+
+            // 大きなファイルをStorageにアップロード
+            if (lesson.audioData) {
+                const audioURL = await this.uploadFileToStorage(
+                    lesson.audioData,
+                    lesson.audioName || 'audio',
+                    lesson.id
+                );
+                if (audioURL) {
+                    lessonData.audioURL = audioURL;
+                    delete lessonData.audioData;
+                }
+            }
+
+            if (lesson.images && lesson.images.length > 0) {
+                lessonData.imageURLs = [];
+                for (let i = 0; i < lesson.images.length; i++) {
+                    const imageURL = await this.uploadFileToStorage(
+                        lesson.images[i],
+                        `image_${i}`,
+                        lesson.id
+                    );
+                    if (imageURL) {
+                        lessonData.imageURLs.push(imageURL);
+                    }
+                }
+                delete lessonData.images;
+            }
+
+            if (lesson.notePdf) {
+                const pdfURL = await this.uploadFileToStorage(
+                    lesson.notePdf,
+                    lesson.notePdfName || 'notes.pdf',
+                    lesson.id
+                );
+                if (pdfURL) {
+                    lessonData.notePdfURL = pdfURL;
+                    delete lessonData.notePdf;
+                }
+            }
+
             const userLessonsRef = this.firestore
                 .collection('users')
                 .doc(this.currentUser.uid)
                 .collection('lessons');
 
             await userLessonsRef.doc(lesson.id.toString()).update({
-                ...lesson,
+                ...lessonData,
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 deviceId: this.getDeviceId()
             });
