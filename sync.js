@@ -116,7 +116,13 @@ class SyncManager {
 
     // Base64データをFirebase Storageにアップロード
     async uploadFileToStorage(base64Data, fileName, lessonId) {
+        console.log('📁 uploadFileToStorage 呼び出し:', fileName);
+        console.log('- base64Data:', base64Data ? `あり (${Math.round(base64Data.length / 1024)}KB)` : 'なし');
+        console.log('- storage:', this.storage ? 'あり' : 'なし');
+        console.log('- currentUser:', this.currentUser ? 'あり' : 'なし');
+
         if (!base64Data || !this.storage || !this.currentUser) {
+            console.warn('⚠️ アップロード条件不足:', { base64Data: !!base64Data, storage: !!this.storage, currentUser: !!this.currentUser });
             return null;
         }
 
@@ -130,17 +136,22 @@ class SyncManager {
                 ia[i] = byteString.charCodeAt(i);
             }
             const blob = new Blob([ab], { type: mimeType });
+            console.log(`📦 Blob作成完了: ${Math.round(blob.size / 1024)}KB, type: ${mimeType}`);
 
             // Storageにアップロード
             const path = `users/${this.currentUser.uid}/lessons/${lessonId}/${fileName}`;
+            console.log(`🚀 Storage パス: ${path}`);
             const storageRef = this.storage.ref(path);
             await storageRef.put(blob);
+            console.log('✅ Storageアップロード成功');
 
             // ダウンロードURLを取得
             const downloadURL = await storageRef.getDownloadURL();
+            console.log('🔗 ダウンロードURL取得:', downloadURL);
             return downloadURL;
         } catch (error) {
-            console.error('ファイルアップロードエラー:', error);
+            console.error('❌ ファイルアップロードエラー:', error);
+            console.error('エラー詳細:', error.code, error.message);
             return null;
         }
     }
@@ -383,7 +394,13 @@ class SyncManager {
     }
 
     async addLesson(lesson) {
+        console.log('💾 addLesson 呼び出し:', lesson.id);
+        console.log('- currentUser:', this.currentUser ? 'あり' : 'なし');
+        console.log('- isOnline:', this.isOnline);
+        console.log('- audioData:', lesson.audioData ? 'あり' : 'なし');
+
         if (!this.currentUser || !this.isOnline) {
+            console.warn('⚠️ オフラインまたは未ログイン - キューに追加');
             this.queueChange({ type: 'add', lesson });
             return;
         }
@@ -393,6 +410,7 @@ class SyncManager {
 
             // 大きなファイルをStorageにアップロード
             if (lesson.audioData) {
+                console.log('🎵 音声ファイルをアップロード開始...');
                 const audioURL = await this.uploadFileToStorage(
                     lesson.audioData,
                     lesson.audioName || 'audio',
@@ -401,6 +419,9 @@ class SyncManager {
                 if (audioURL) {
                     lessonData.audioURL = audioURL;
                     delete lessonData.audioData;
+                    console.log('✅ 音声ファイルアップロード成功:', audioURL);
+                } else {
+                    console.error('❌ 音声ファイルアップロード失敗');
                 }
             }
 

@@ -1112,8 +1112,19 @@ class UIController {
                 await this.db.updateLesson(lesson);
 
                 // Firebase Storageにアップロード
+                console.log('🔄 Firebase Storageへのアップロードを開始（更新）');
+                console.log('syncManager:', typeof syncManager !== 'undefined' ? 'あり' : 'なし');
+                console.log('currentUser:', syncManager?.currentUser ? 'ログイン中' : 'ログインなし');
                 if (typeof syncManager !== 'undefined' && syncManager && syncManager.currentUser) {
-                    await syncManager.updateLesson(lesson);
+                    console.log('📤 Firebase Storageにアップロード中...');
+                    try {
+                        await syncManager.updateLesson(lesson);
+                        console.log('✅ Firebase Storageアップロード完了');
+                    } catch (error) {
+                        console.error('❌ Firebase Storageアップロードエラー:', error);
+                    }
+                } else {
+                    console.warn('⚠️ Firebase Storageにアップロードできません（ログインしていないか、syncManagerが未初期化）');
                 }
 
                 this.showToast('レッスン記録を更新しました', 'success');
@@ -1121,8 +1132,20 @@ class UIController {
                 await this.db.addLesson(lesson);
 
                 // Firebase Storageにアップロード
+                console.log('🔄 Firebase Storageへのアップロードを開始（新規）');
+                console.log('syncManager:', typeof syncManager !== 'undefined' ? 'あり' : 'なし');
+                console.log('currentUser:', syncManager?.currentUser ? 'ログイン中' : 'ログインなし');
+                console.log('音声データあり:', lesson.audioData ? 'はい' : 'いいえ');
                 if (typeof syncManager !== 'undefined' && syncManager && syncManager.currentUser) {
-                    await syncManager.addLesson(lesson);
+                    console.log('📤 Firebase Storageにアップロード中...');
+                    try {
+                        await syncManager.addLesson(lesson);
+                        console.log('✅ Firebase Storageアップロード完了');
+                    } catch (error) {
+                        console.error('❌ Firebase Storageアップロードエラー:', error);
+                    }
+                } else {
+                    console.warn('⚠️ Firebase Storageにアップロードできません（ログインしていないか、syncManagerが未初期化）');
                 }
 
                 this.showToast('レッスン記録を追加しました', 'success');
