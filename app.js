@@ -1110,9 +1110,21 @@ class UIController {
             if (lessonId) {
                 lesson.id = parseInt(lessonId);
                 await this.db.updateLesson(lesson);
+
+                // Firebase Storageにアップロード
+                if (typeof syncManager !== 'undefined' && syncManager && syncManager.currentUser) {
+                    await syncManager.updateLesson(lesson);
+                }
+
                 this.showToast('レッスン記録を更新しました', 'success');
             } else {
                 await this.db.addLesson(lesson);
+
+                // Firebase Storageにアップロード
+                if (typeof syncManager !== 'undefined' && syncManager && syncManager.currentUser) {
+                    await syncManager.addLesson(lesson);
+                }
+
                 this.showToast('レッスン記録を追加しました', 'success');
             }
 
@@ -1138,6 +1150,12 @@ class UIController {
     async deleteCurrentLesson() {
         try {
             await this.db.deleteLesson(this.state.currentLessonId);
+
+            // Firebaseからも削除
+            if (typeof syncManager !== 'undefined' && syncManager && syncManager.currentUser) {
+                await syncManager.deleteLesson(this.state.currentLessonId);
+            }
+
             this.closeDeleteModal();
             this.showToast('レッスン記録を削除しました', 'success');
             this.showListView();
@@ -1195,7 +1213,12 @@ class UIController {
 
             for (const lesson of lessons) {
                 delete lesson.id;
-                await this.db.addLesson(lesson);
+                const newLesson = await this.db.addLesson(lesson);
+
+                // Firebase Storageにもアップロード
+                if (typeof syncManager !== 'undefined' && syncManager && syncManager.currentUser) {
+                    await syncManager.addLesson(newLesson);
+                }
             }
 
             this.showToast(`${lessons.length}件のレッスン記録をインポートしました`, 'success');

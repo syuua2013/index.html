@@ -326,23 +326,42 @@ class SyncManager {
 
         // リアルタイムリスナーを設定
         userLessonsRef.onSnapshot(async (snapshot) => {
-            snapshot.docChanges().forEach(async (change) => {
-                const lesson = {
+            for (const change of snapshot.docChanges()) {
+                const lessonData = {
                     ...change.doc.data(),
                     id: parseInt(change.doc.id)
                 };
 
                 // 自分のデバイスからの変更は無視
-                if (lesson.deviceId === this.getDeviceId()) {
-                    return;
+                if (lessonData.deviceId === this.getDeviceId()) {
+                    continue;
                 }
 
                 if (change.type === 'added' || change.type === 'modified') {
-                    const existingLesson = await this.db.getLesson(lesson.id);
+                    // StorageのURLからファイルを復元
+                    if (lessonData.audioURL && !lessonData.audioData) {
+                        lessonData.audioData = await this.downloadFileFromStorage(lessonData.audioURL);
+                    }
+
+                    if (lessonData.imageURLs && lessonData.imageURLs.length > 0 && !lessonData.images) {
+                        lessonData.images = [];
+                        for (const imageURL of lessonData.imageURLs) {
+                            const imageData = await this.downloadFileFromStorage(imageURL);
+                            if (imageData) {
+                                lessonData.images.push(imageData);
+                            }
+                        }
+                    }
+
+                    if (lessonData.notePdfURL && !lessonData.notePdf) {
+                        lessonData.notePdf = await this.downloadFileFromStorage(lessonData.notePdfURL);
+                    }
+
+                    const existingLesson = await this.db.getLesson(lessonData.id);
                     if (existingLesson) {
-                        await this.db.updateLesson(lesson);
+                        await this.db.updateLesson(lessonData);
                     } else {
-                        await this.db.addLesson(lesson);
+                        await this.db.addLesson(lessonData);
                     }
 
                     // UIを更新
@@ -352,14 +371,14 @@ class SyncManager {
                 }
 
                 if (change.type === 'removed') {
-                    await this.db.deleteLesson(lesson.id);
+                    await this.db.deleteLesson(lessonData.id);
 
                     // UIを更新
                     if (this.uiController) {
                         await this.uiController.loadLessons();
                     }
                 }
-            });
+            }
         });
     }
 
