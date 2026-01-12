@@ -113,13 +113,25 @@ select {
    ヘッダー
    ================================================ */
 .header {
-    text-align: center;
     margin-bottom: var(--spacing-xl);
-    padding: var(--spacing-xl) 0;
+    padding: var(--spacing-xl);
     background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
     color: white;
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-lg);
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--spacing-lg);
+    flex-wrap: wrap;
+}
+
+.header-title {
+    flex: 1;
+    text-align: center;
 }
 
 .header h1 {
@@ -133,6 +145,87 @@ select {
     opacity: 0.9;
 }
 
+.header-user {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    background: rgba(255, 255, 255, 0.15);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-md);
+}
+
+.user-email {
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.btn-user {
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: var(--radius-md);
+    font-weight: 500;
+    transition: all var(--transition-fast);
+    font-size: 0.875rem;
+}
+
+.btn-user:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+}
+
+.btn-login {
+    background: white;
+    color: var(--color-primary);
+    border: none;
+}
+
+.btn-login:hover {
+    background: rgba(255, 255, 255, 0.9);
+}
+
+.sync-status {
+    display: flex;
+    align-items: center;
+}
+
+.sync-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.sync-indicator.online {
+    background: #10b981;
+    box-shadow: 0 0 8px #10b981;
+}
+
+.sync-indicator.offline {
+    background: #9ca3af;
+}
+
+.sync-indicator.syncing {
+    background: #f59e0b;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
 @media (min-width: 768px) {
     .header h1 {
         font-size: 2.5rem;
@@ -140,6 +233,22 @@ select {
 
     .header .subtitle {
         font-size: 1.125rem;
+    }
+}
+
+@media (max-width: 767px) {
+    .header-content {
+        flex-direction: column;
+    }
+
+    .header-title {
+        text-align: center;
+        width: 100%;
+    }
+
+    .header-user {
+        width: 100%;
+        justify-content: center;
     }
 }
 
@@ -553,6 +662,105 @@ select {
     color: var(--color-text);
 }
 
+/* 詳細ビューの評価表示 */
+.detail-rating {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    padding: var(--spacing-lg);
+    border-radius: var(--radius-lg);
+    color: white;
+}
+
+.detail-rating-stars {
+    font-size: 2rem;
+    letter-spacing: 0.25rem;
+}
+
+.detail-rating-stars .star {
+    color: rgba(255, 255, 255, 0.3);
+}
+
+.detail-rating-stars .star.filled {
+    color: white;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+
+.detail-rating-text {
+    font-size: 1.125rem;
+    font-weight: 600;
+}
+
+.detail-reflection,
+.detail-practice-notes {
+    background: var(--color-bg);
+    padding: var(--spacing-lg);
+    border-radius: var(--radius-md);
+    line-height: 1.8;
+    white-space: pre-wrap;
+    color: var(--color-text);
+}
+
+/* PDFプレビュー */
+.pdf-preview-item {
+    position: relative;
+    background: var(--color-bg-secondary);
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    border: 2px solid var(--color-border);
+    transition: all var(--transition-fast);
+}
+
+.pdf-preview-item:hover {
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-md);
+}
+
+.pdf-preview-item svg {
+    color: var(--color-danger);
+    flex-shrink: 0;
+}
+
+.pdf-preview-info {
+    flex: 1;
+}
+
+.pdf-preview-name {
+    font-weight: 600;
+    color: var(--color-text);
+    word-break: break-all;
+    margin-bottom: var(--spacing-xs);
+}
+
+.pdf-preview-size {
+    font-size: 0.875rem;
+    color: var(--color-text-light);
+}
+
+.pdf-download-btn {
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--color-primary);
+    color: white;
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.pdf-download-btn:hover {
+    background: var(--color-primary-dark);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
 /* 音声プレーヤー */
 .audio-player {
     background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
@@ -794,6 +1002,49 @@ select {
 .audio-preview-size {
     font-size: 0.875rem;
     color: var(--color-text-light);
+}
+
+/* 星評価 */
+.rating-input {
+    background: var(--color-bg);
+    padding: var(--spacing-lg);
+    border-radius: var(--radius-md);
+    text-align: center;
+}
+
+.star-rating {
+    font-size: 3rem;
+    letter-spacing: 0.5rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.star-rating .star {
+    color: var(--color-border);
+    transition: all var(--transition-fast);
+    display: inline-block;
+}
+
+.star-rating .star:hover,
+.star-rating .star.active {
+    color: #fbbf24;
+    transform: scale(1.1);
+}
+
+.star-rating .star.active {
+    text-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+}
+
+.rating-label {
+    margin-top: var(--spacing-md);
+    font-size: 1rem;
+    color: var(--color-text-light);
+    font-weight: 500;
+}
+
+.rating-label.selected {
+    color: var(--color-primary);
+    font-weight: 600;
 }
 
 /* フォームアクション */
@@ -1062,6 +1313,85 @@ select {
 
 .toast-close:hover {
     background: var(--color-bg);
+    color: var(--color-text);
+}
+
+/* ================================================
+   認証フォーム
+   ================================================ */
+.auth-form {
+    margin-bottom: var(--spacing-lg);
+}
+
+.auth-form .form-group {
+    margin-bottom: var(--spacing-md);
+}
+
+.auth-form label {
+    display: block;
+    margin-bottom: var(--spacing-sm);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.auth-form input {
+    width: 100%;
+    padding: var(--spacing-md);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+}
+
+.auth-form input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.auth-actions {
+    display: flex;
+    gap: var(--spacing-md);
+    flex-direction: column;
+}
+
+.auth-status {
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--spacing-md);
+    display: none;
+}
+
+.auth-status.success {
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid var(--color-success);
+    color: var(--color-success);
+    display: block;
+}
+
+.auth-status.error {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid var(--color-danger);
+    color: var(--color-danger);
+    display: block;
+}
+
+.auth-info {
+    background: var(--color-bg);
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+    color: var(--color-text-light);
+}
+
+.auth-info p {
+    margin-bottom: var(--spacing-sm);
+}
+
+.auth-info p:last-child {
+    margin-bottom: 0;
+}
+
+.auth-info strong {
     color: var(--color-text);
 }
 
